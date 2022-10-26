@@ -1,24 +1,21 @@
-import os
 import cv2
-import random
 import argparse
 import pandas as pd
 import numpy as np
 from tqdm.auto import tqdm
-from sklearn import preprocessing
-from sklearn.model_selection import train_test_split
 
 import torch
 import torch.nn as nn
-import albumentations as A 
+
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from albumentations.pytorch.transforms import ToTensorV2
 
-from .utils import *
-from .model import *
-from .dataset import *
+from utils import *
+from model import *
+from dataset import *
+from inference import *
 
 import warnings
 warnings.filterwarnings(action='ignore') 
@@ -33,7 +30,7 @@ def train(model, optimizer, train_loader, test_loader, scheduler, device):
     best_score = 0
     best_model = None
     
-    for epoch in range(1,CFG["EPOCHS"]+1):
+    for epoch in range(1,args.epoch+1):
         model.train()
         train_loss = []
         for img, label in tqdm(iter(train_loader)):
@@ -68,7 +65,7 @@ def train(model, optimizer, train_loader, test_loader, scheduler, device):
                         'optimizer_state_dict':optimizer.state_dict(),
                         'loss':val_loss,
                         },
-                        f"/content/drive/MyDrive/eff/1023_{epoch}_{val_score:.3f}.pt")
+                        f"saved/eff_{epoch}_{val_score:.3f}.pt")
         
     return best_model
 
@@ -97,23 +94,6 @@ def validation(model, criterion, test_loader, device):
     val_f1 = competition_metric(true_labels, model_preds)
     return np.mean(val_loss), val_f1
 
-
-def inference(model, test_loader, device):
-    model.to(device)
-    model.eval()
-    
-    model_preds = []
-    
-    with torch.no_grad():
-        for img in tqdm(iter(test_loader)):
-            img = img.float().to(device)
-            
-            model_pred = model(img)
-            model_preds += model_pred.argmax(1).detach().cpu().numpy().tolist()
-    
-    print('Done.')
-    return model_preds
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--data_dir', type=str, default='data/')
@@ -129,15 +109,14 @@ if __name__ == "__main__":
     seed_everything(args.seed)
 
     # Dataset
-    train_dataset, val_dataset,
-        train_transform, test_transform = get_dataset()
+    train_dataset, val_dataset = get_dataset()
     train_loader = DataLoader(train_dataset, batch_size =args.batch_size,shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
     # Train model
-    model = BaseModel(num_classes=len(le.classes))
+    model = BaseModel(num_classes=50)
     model.eval()
-    optimizer = torch.optim.Adam(params = model.parameters(), lr = CFG["LEARNING_RATE"])
+    optimizer = torch.optim.Adam(params = model.parameters(), lr = args.learning_rate)
     scheduler = None 
 
     trained_model = train(model, optimizer, train_loader, val_loader, scheduler, args.device)

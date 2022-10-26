@@ -1,7 +1,12 @@
 import os
+import cv2
 import pandas as pd
-from PIL import Image
+import albumentations as A 
 
+from albumentations.pytorch.transforms import ToTensorV2
+from PIL import Image
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from torchvision.transforms import Resize, ToTensor, Normalize, Compose
 
@@ -27,7 +32,7 @@ def get_dataset():
     train_df, val_df, _, _ = train_test_split(df, 
                                   df['artist'].values, 
                                   test_size=0.2, 
-                                  random_state=args.seed)
+                                  random_state=41)
     train_df = train_df.sort_values(by=['id'])
     val_df = val_df.sort_values(by=['id'])
 
@@ -47,7 +52,7 @@ def get_dataset():
                         ToTensorV2()
                         ])
 
-    test_transform = A.Compose([
+    val_transform = A.Compose([
                         A.Resize(480, 480),
                         A.RandomCrop(224, 224),
                         A.Normalize(
@@ -60,7 +65,7 @@ def get_dataset():
                         ])
 
     train_dataset = CustomDataset(train_img_paths, train_labels, train_transform)
-    val_dataset = CustomDataset(val_img_paths, val_labels, test_transform)
+    val_dataset = CustomDataset(val_img_paths, val_labels, val_transform)
     return train_dataset, val_dataset 
 
 
@@ -80,7 +85,11 @@ class CustomDataset(Dataset):
     def __init__(self, img_paths, labels, transforms=None):
         self.img_paths = img_paths
         self.labels = labels
-        self.transforms = transforms
+        self.transforms = A.Compose([
+                            A.Resize(224, 224),
+                            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, always_apply=False, p=1.0),
+                            ToTensorV2()
+                            ])
 
     def __getitem__(self, index):
         img_path = self.img_paths[index]
